@@ -34,3 +34,7 @@ Disparo manual de cualquier job: `POST /api/admin/refresh/{job}` (universe, pric
 - Los agentes solo razonan sobre datos recuperados de la DB; nunca inventan cifras. Todo output del observer lleva disclaimer.
 - Datos faltantes → `None` / `NO_VALORABLE`, nunca forzar un número.
 - No pasar `temperature`/`top_p` al API de Anthropic (los modelos actuales los rechazan).
+
+## Notas
+
+- Por defecto los cambios de interfaz que se pidan deben de orientarse a la super-view `frontend/src/pages/SuperView.tsx`

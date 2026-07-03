@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Link, NavLink, Route, Routes } from "react-router-dom";
+import { Link, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { triggerRefresh } from "./api";
 import FilterBar from "./components/FilterBar";
 import AlertsPage from "./pages/Alerts";
@@ -7,6 +7,7 @@ import EventScreen from "./pages/EventScreen";
 import GrowthScreen from "./pages/GrowthScreen";
 import ObserverPage from "./pages/Observer";
 import Overview from "./pages/Overview";
+import SuperView from "./pages/SuperView";
 import TickerDetail from "./pages/TickerDetail";
 import ValueScreen from "./pages/ValueScreen";
 
@@ -46,34 +47,51 @@ function RefreshButton() {
   );
 }
 
+function SuperViewButton() {
+  return (
+    <NavLink
+      to="/super-view"
+      className={({ isActive }) => `btn-superview${isActive ? " btn-superview-active" : ""}`}
+    >
+      <span aria-hidden="true">⛶</span> Super-View
+    </NavLink>
+  );
+}
+
 export default function App() {
+  const location = useLocation();
+  const isSuperView = location.pathname === "/super-view";
+
   return (
     <div className="app">
-      <header className="header">
-        <div className="header-top">
-          <Link to="/" className="logo">
-            <span className="logo-mark" aria-hidden="true">
-              ◮
-            </span>
-            Market Sentinel
-          </Link>
-          <FilterBar />
-          <RefreshButton />
-        </div>
-        <nav className="tabs" aria-label="Secciones">
-          {TABS.map((t) => (
-            <NavLink
-              key={t.to}
-              to={t.to}
-              end={t.end}
-              className={({ isActive }) => `tab${isActive ? " tab-active" : ""}`}
-            >
-              {t.label}
-            </NavLink>
-          ))}
-        </nav>
-      </header>
-      <main className="main">
+      {!isSuperView && (
+        <header className="header">
+          <div className="header-top">
+            <Link to="/" className="logo">
+              <span className="logo-mark" aria-hidden="true">
+                ◮
+              </span>
+              Market Sentinel
+            </Link>
+            <SuperViewButton />
+            <FilterBar />
+            <RefreshButton />
+          </div>
+          <nav className="tabs" aria-label="Secciones">
+            {TABS.map((t) => (
+              <NavLink
+                key={t.to}
+                to={t.to}
+                end={t.end}
+                className={({ isActive }) => `tab${isActive ? " tab-active" : ""}`}
+              >
+                {t.label}
+              </NavLink>
+            ))}
+          </nav>
+        </header>
+      )}
+      <main className={`main${isSuperView ? " main-superview" : ""}`}>
         <Routes>
           <Route path="/" element={<Overview />} />
           <Route path="/value" element={<ValueScreen />} />
@@ -81,6 +99,7 @@ export default function App() {
           <Route path="/event" element={<EventScreen />} />
           <Route path="/alerts" element={<AlertsPage />} />
           <Route path="/observer" element={<ObserverPage />} />
+          <Route path="/super-view" element={<SuperView />} />
           <Route path="/ticker/:symbol" element={<TickerDetail />} />
         </Routes>
       </main>

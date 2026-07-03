@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app import db
 from app.config import settings
 from app.models import (
+    AgentJob,
     Alert,
     DcfValuation,
     Fundamentals,
@@ -240,6 +241,35 @@ def get_alerts(
     stmt = stmt.order_by(Alert.created_at.desc()).limit(limit)
     alerts = session.scalars(stmt).all()
     return {"items": [_alert_dict(a) for a in alerts]}
+
+
+@router.get("/agent-jobs/status")
+def get_agent_jobs_status(session: Session = Depends(db.get_db)) -> dict[str, Any]:
+    """Estado de la cola de agentes IA: conteos por status y últimos jobs procesados."""
+    rows = session.execute(
+        select(AgentJob.status, func.count(AgentJob.id)).group_by(AgentJob.status)
+    ).all()
+    counts = {"pending": 0, "running": 0, "done": 0, "error": 0, "skipped": 0}
+    for status_val, count in rows:
+        counts[status_val] = count
+
+    recent = session.scalars(
+        select(AgentJob).order_by(AgentJob.updated_at.desc()).limit(8)
+    ).all()
+
+    return {
+        "counts": counts,
+        "recent": [
+            {
+                "id": j.id,
+                "kind": j.kind,
+                "status": j.status,
+                "symbol": j.payload.get("symbol") if isinstance(j.payload, dict) else None,
+                "updated_at": _iso(j.updated_at),
+            }
+            for j in recent
+        ],
+    }
 
 
 @router.get("/tickers/{symbol}")

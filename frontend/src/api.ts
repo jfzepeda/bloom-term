@@ -1,4 +1,5 @@
 import type {
+  AgentJobsStatusResponse,
   AlertsResponse,
   ObserverReport,
   RefreshResponse,
@@ -57,6 +58,10 @@ export function getTicker(symbol: string): Promise<TickerDetailResponse> {
 
 export function getObserverLatest(): Promise<ObserverReport> {
   return fetchJson<ObserverReport>("/api/observer/latest");
+}
+
+export function getAgentJobsStatus(): Promise<AgentJobsStatusResponse> {
+  return fetchJson<AgentJobsStatusResponse>("/api/agent-jobs/status");
 }
 
 export function triggerRefresh(job: string): Promise<RefreshResponse> {

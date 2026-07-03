@@ -167,3 +167,24 @@ export interface RefreshResponse {
   status: string;
   job: string;
 }
+
+export interface AgentJobCounts {
+  pending: number;
+  running: number;
+  done: number;
+  error: number;
+  skipped: number;
+}
+
+export interface AgentJobRecent {
+  id: number;
+  kind: string;
+  status: string;
+  symbol: string | null;
+  updated_at: string | null;
+}
+
+export interface AgentJobsStatusResponse {
+  counts: AgentJobCounts;
+  recent: AgentJobRecent[];
+}
