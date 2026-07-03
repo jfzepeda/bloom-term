@@ -8,11 +8,11 @@ Dashboard de inteligencia de inversión sobre el S&P 500: 3 niveles de riesgo (V
 docker compose up --build          # todo el sistema (db + api + worker + frontend en :5173)
 
 # Desarrollo local (requiere Postgres en :5432 o docker compose up db)
-cd backend && python -m venv .venv && .venv/bin/pip install -r requirements.txt
-cd backend && .venv/bin/uvicorn app.main:app --reload          # API en :8000
-cd backend && .venv/bin/python worker.py                       # scheduler + backfill inicial
-cd backend && .venv/bin/python -m pytest                       # tests
-cd frontend && npm install && npm run dev                      # frontend dev en :5173 (proxy /api -> :8000)
+cd backend && uv sync                                          # instala deps (uv, pyproject.toml + uv.lock)
+cd backend && uv run uvicorn app.main:app --reload              # API en :8000
+cd backend && uv run python worker.py                           # scheduler + backfill inicial
+cd backend && uv run pytest                                     # tests
+cd frontend && pnpm install && pnpm run dev                    # frontend dev en :5173 (proxy /api -> :8000)
 ```
 
 Disparo manual de cualquier job: `POST /api/admin/refresh/{job}` (universe, prices_history, prices_latest, fundamentals, technicals, dcf, screens, news_macro, news_alerts, scan_alerts, agent_jobs, event_scout, observer).
@@ -38,3 +38,4 @@ Disparo manual de cualquier job: `POST /api/admin/refresh/{job}` (universe, pric
 ## Notas
 
 - Por defecto los cambios de interfaz que se pidan deben de orientarse a la super-view `frontend/src/pages/SuperView.tsx`
+- De ahora en adelante usa tailwind para todo lo estetico nuevo

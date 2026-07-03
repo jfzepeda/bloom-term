@@ -204,14 +204,22 @@ function StockPhase({
     closes.length >= 2 && closes[closes.length - 1] >= closes[0]
       ? "var(--green)"
       : "var(--red)";
-  const accent = accentFor(ticker.symbol);
 
   return (
     <div className="kiosk-stock">
       <div className="kiosk-stock-side">
         <div className="kiosk-stock-head">
-          <div className="kiosk-stock-badge" style={{ background: accent }}>
-            {ticker.symbol[0]}
+          <div
+            className="kiosk-stock-badge"
+            style={{ background: accentFor(ticker.symbol) }}
+          >
+            <img
+              src={`https://img.logo.dev/ticker/${ticker.symbol}?token=pk_Vf100h2MQD2W_VHqG04VCQ`}
+              alt={ticker.symbol}
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = "none";
+              }}
+            />
           </div>
           <div>
             <div className="kiosk-stock-symbol">{ticker.symbol}</div>
@@ -469,7 +477,7 @@ export default function SuperView() {
     () =>
       [...withChange]
         .sort((a, b) => Math.abs(b.change_pct_1d!) - Math.abs(a.change_pct_1d!))
-        .slice(0, 12),
+        .slice(0, 20),
     [withChange]
   );
 
@@ -559,7 +567,7 @@ export default function SuperView() {
           <div>
             <div className="kiosk-section-title">Sectores S&amp;P 500</div>
             <div className="kiosk-sectors">
-              {sectors.map((s) => (
+              {sectors.slice(0, 8).map((s) => (
                 <button
                   key={s.name}
                   type="button"
@@ -594,37 +602,27 @@ export default function SuperView() {
           <div>
             <div className="kiosk-section-title">Top Movimientos</div>
             <div className="kiosk-movers">
-              {topMovers.slice(0, 10).map((it) => (
+              {topMovers.slice(0, 14).map((it) => (
                 <button
                   key={it.symbol}
                   type="button"
                   className="kiosk-mover-card"
                   onClick={() =>
-                    setModal({
-                      title: it.symbol,
-                      subtitle: it.name ?? "",
-                      rows: [
-                        { label: "Precio", value: fmtMoney(it.last_close) },
-                        {
-                          label: "Variación diaria",
-                          value: fmtPct(it.change_pct_1d),
-                        },
-                        { label: "Sector", value: it.sector ?? "—" },
-                        {
-                          label: "Veredicto DCF",
-                          value: it.dcf_verdict ?? "—",
-                        },
-                      ],
-                      note: "Datos del universo S&P 500 / Nasdaq-100.",
-                    })
+                    // abrir selfdomain/ticker/${it.symbol} en nueva pestaña
+                    window.open(`/ticker/${it.symbol}`, "_self")
                   }
                 >
                   <span
                     className="kiosk-mover-badge"
                     style={{ background: accentFor(it.symbol) }}
                   >
-                    {it.symbol[0]}
-                    {it.symbol[0]}
+                    <img
+                      src={`https://img.logo.dev/ticker/${it.symbol}?token=pk_Vf100h2MQD2W_VHqG04VCQ`}
+                      alt={it.symbol}
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = "none";
+                      }}
+                    />
                   </span>
                   <span className="kiosk-mover-info">
                     <span className="kiosk-mover-symbol">{it.symbol}</span>
@@ -642,33 +640,135 @@ export default function SuperView() {
             </div>
           </div>
 
-          <div className={`kiosk-center${fading ? " kiosk-center-fade" : ""}`}>
-            {phase === 0 && (
-              <>
-                <div className="kiosk-center-title">
-                  Agentes IA — Cola de Trabajo
-                </div>
-                <AgentsPhase status={agentStatus} />
-              </>
-            )}
-            {phase === 1 && (
-              <>
-                <div className="kiosk-center-title">Stock Destacado</div>
-                <StockPhase
-                  hasFeatured={featuredSymbols.length > 0}
-                  symbol={activeSymbol}
-                  detail={activeSymbol ? tickerCache[activeSymbol] : undefined}
-                />
-              </>
-            )}
-            {phase === 2 && (
-              <>
-                <div className="kiosk-center-title">
-                  Pipeline de Investigación — Market Sentinel
-                </div>
-                <PipelinePhase />
-              </>
-            )}
+          <div className="grid grid-cols-2 grid-rows-2 gap-[10px] flex-1 min-h-0">
+            <div
+              className={`kiosk-center${fading ? " kiosk-center-fade" : ""}`}
+            >
+              {phase === 0 && (
+                <>
+                  <div className="kiosk-center-title">
+                    Agentes IA — Cola de Trabajo
+                  </div>
+                  <AgentsPhase status={agentStatus} />
+                </>
+              )}
+              {phase === 1 && (
+                <>
+                  <div className="kiosk-center-title">Stock Destacado</div>
+                  <StockPhase
+                    hasFeatured={featuredSymbols.length > 0}
+                    symbol={activeSymbol}
+                    detail={
+                      activeSymbol ? tickerCache[activeSymbol] : undefined
+                    }
+                  />
+                </>
+              )}
+              {phase === 2 && (
+                <>
+                  <div className="kiosk-center-title">
+                    Pipeline de Investigación — Market Sentinel
+                  </div>
+                  <PipelinePhase />
+                </>
+              )}
+            </div>
+            <div
+              className={`kiosk-center${fading ? " kiosk-center-fade" : ""}`}
+            >
+              {phase === 0 && (
+                <>
+                  <div className="kiosk-center-title">
+                    Agentes IA — Cola de Trabajo
+                  </div>
+                  <AgentsPhase status={agentStatus} />
+                </>
+              )}
+              {phase === 1 && (
+                <>
+                  <div className="kiosk-center-title">Stock Destacado</div>
+                  <StockPhase
+                    hasFeatured={featuredSymbols.length > 0}
+                    symbol={activeSymbol}
+                    detail={
+                      activeSymbol ? tickerCache[activeSymbol] : undefined
+                    }
+                  />
+                </>
+              )}
+              {phase === 2 && (
+                <>
+                  <div className="kiosk-center-title">
+                    Pipeline de Investigación — Market Sentinel
+                  </div>
+                  <PipelinePhase />
+                </>
+              )}
+            </div>
+            <div
+              className={`kiosk-center${fading ? " kiosk-center-fade" : ""}`}
+            >
+              {phase === 0 && (
+                <>
+                  <div className="kiosk-center-title">
+                    Agentes IA — Cola de Trabajo
+                  </div>
+                  <AgentsPhase status={agentStatus} />
+                </>
+              )}
+              {phase === 1 && (
+                <>
+                  <div className="kiosk-center-title">Stock Destacado</div>
+                  <StockPhase
+                    hasFeatured={featuredSymbols.length > 0}
+                    symbol={activeSymbol}
+                    detail={
+                      activeSymbol ? tickerCache[activeSymbol] : undefined
+                    }
+                  />
+                </>
+              )}
+              {phase === 2 && (
+                <>
+                  <div className="kiosk-center-title">
+                    Pipeline de Investigación — Market Sentinel
+                  </div>
+                  <PipelinePhase />
+                </>
+              )}
+            </div>
+            <div
+              className={`kiosk-center${fading ? " kiosk-center-fade" : ""}`}
+            >
+              {phase === 0 && (
+                <>
+                  <div className="kiosk-center-title">
+                    Agentes IA — Cola de Trabajo
+                  </div>
+                  <AgentsPhase status={agentStatus} />
+                </>
+              )}
+              {phase === 1 && (
+                <>
+                  <div className="kiosk-center-title">Stock Destacado</div>
+                  <StockPhase
+                    hasFeatured={featuredSymbols.length > 0}
+                    symbol={activeSymbol}
+                    detail={
+                      activeSymbol ? tickerCache[activeSymbol] : undefined
+                    }
+                  />
+                </>
+              )}
+              {phase === 2 && (
+                <>
+                  <div className="kiosk-center-title">
+                    Pipeline de Investigación — Market Sentinel
+                  </div>
+                  <PipelinePhase />
+                </>
+              )}
+            </div>
           </div>
         </div>
 

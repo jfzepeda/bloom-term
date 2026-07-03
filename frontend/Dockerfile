@@ -1,10 +1,12 @@
 # Etapa 1: build de la SPA
-FROM node:20-alpine AS build
+FROM node:22-alpine AS build
+RUN corepack enable
 WORKDIR /app
-COPY package.json package-lock.json* ./
-RUN npm ci || npm install
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN corepack prepare --activate $(node -p "require('./package.json').packageManager") \
+    && pnpm install --frozen-lockfile
 COPY . .
-RUN npm run build
+RUN pnpm run build
 
 # Etapa 2: nginx sirviendo estáticos + proxy /api
 FROM nginx:alpine

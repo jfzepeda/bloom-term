@@ -7,7 +7,7 @@ Dashboard de inteligencia de inversión sobre el S&P 500: 3 niveles de análisis
 ## Requisitos
 
 - Docker Desktop (para el modo recomendado), o
-- Python 3.12 + Node 20 + Postgres 16 (para desarrollo local)
+- Python 3.12 ([uv](https://docs.astral.sh/uv/)) + Node 22+ ([pnpm](https://pnpm.io/)) + Postgres 16 (para desarrollo local)
 - Opcional: `ANTHROPIC_API_KEY` para la capa de agentes IA (sin key todo funciona igual, los jobs de agentes quedan `skipped`)
 
 ## Configuración
@@ -74,13 +74,13 @@ docker compose logs -f api         # peticiones y jobs manuales
 docker compose up -d db            # solo Postgres en :5432
 
 cd backend
-python -m venv .venv && .venv/bin/pip install -r requirements.txt
-.venv/bin/uvicorn app.main:app --reload      # API en :8000
-.venv/bin/python worker.py                   # (otra terminal) scheduler + backfill inicial
-.venv/bin/python -m pytest                   # tests
+uv sync                                      # instala deps (pyproject.toml + uv.lock)
+uv run uvicorn app.main:app --reload         # API en :8000
+uv run python worker.py                      # (otra terminal) scheduler + backfill inicial
+uv run pytest                                # tests
 
 cd ../frontend
-npm install && npm run dev                   # dev server en :5173 con proxy /api -> :8000
+pnpm install && pnpm run dev                 # dev server en :5173 con proxy /api -> :8000
 ```
 
 Para detener: `Ctrl+C` en cada proceso y `docker compose stop db`.

@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 /* ===== Market Sentinel — tema oscuro financiero ===== */
 
 :root {
@@ -1165,8 +1167,8 @@ select:focus {
 
 .kiosk-sector-card {
   min-width: 0;
-  background: var(--panel);
-  border: 1px solid var(--border);
+  background: var(--bg);
+  border: 0px solid transparent;
   border-radius: 6px;
   padding: 8px 10px;
   cursor: pointer;
@@ -1178,11 +1180,11 @@ select:focus {
 }
 
 .kiosk-sector-card:hover {
-  border-color: var(--text-2);
+  border: 1px solid var(--text-2);
 }
 
 .kiosk-sector-name {
-  font-size: 12px;
+  font-size: 15px;
   color: var(--text-2);
   font-weight: 600;
   white-space: nowrap;
@@ -1192,7 +1194,7 @@ select:focus {
 
 .kiosk-sector-pct {
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
-  font-size: 15px;
+  font-size: 18px;
   font-weight: 700;
 }
 
@@ -1206,8 +1208,6 @@ select:focus {
 
 .kiosk-mover-card {
   min-width: 0;
-  background: var(--panel);
-  border: 1px solid var(--border);
   border-radius: 6px;
   padding: 7px 9px;
   display: flex;
@@ -1216,10 +1216,6 @@ select:focus {
   cursor: pointer;
   color: var(--text);
   text-align: left;
-}
-
-.kiosk-mover-card:hover {
-  border-color: var(--text-2);
 }
 
 .kiosk-mover-badge {
@@ -1233,6 +1229,13 @@ select:focus {
   font-weight: 800;
   font-size: 12px;
   flex: 0 0 28px;
+  overflow: hidden;
+}
+
+.kiosk-mover-badge img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .kiosk-mover-info {
@@ -1269,8 +1272,6 @@ select:focus {
 .kiosk-center {
   flex: 1;
   min-height: 0;
-  background: var(--panel);
-  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 16px 20px;
   display: flex;
@@ -1404,6 +1405,13 @@ select:focus {
   font-weight: 800;
   font-size: 17px;
   flex: 0 0 40px;
+  overflow: hidden;
+}
+
+.kiosk-stock-badge img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .kiosk-stock-symbol {
@@ -1431,8 +1439,6 @@ select:focus {
 .kiosk-stock-stat {
   flex: 1;
   background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
   padding: 7px 9px;
 }
 
