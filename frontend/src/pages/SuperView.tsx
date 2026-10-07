@@ -1,420 +1,205 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getAgentJobsStatus, getAlerts, getTicker } from "../api";
-import { AgentsPhase } from "../components/superview/AgentsPhase";
-import { PipelinePhase } from "../components/superview/PipelinePhase";
-import { StockPhase } from "../components/superview/StockPhase";
-import { Modal } from "../components/superview/SuperViewModal";
-import { TickerRow } from "../components/superview/TickerRow";
-import type {
-  ModalState,
-  SectorAgg,
-  TickerRowItem,
-} from "../components/superview/types";
-import { accentFor, severityColor } from "../components/superview/utils";
-import { Loading } from "../components/EmptyState";
-import { severityLabel } from "../components/Severity";
-import { fmtMoney, fmtPct, fmtRelative, pctClass, todayISO } from "../format";
-import { useScreen } from "../hooks/useScreen";
+import { AgentsPanel } from "../components/terminal/AgentsPanel";
+import { CommandLine } from "../components/terminal/CommandLine";
+import { MarketPanel } from "../components/terminal/MarketPanel";
+import { NewsPanel } from "../components/terminal/NewsPanel";
+import { ObserverPanel } from "../components/terminal/ObserverPanel";
+import { QuoteOverlay } from "../components/terminal/QuoteOverlay";
+import { RadarPanel } from "../components/terminal/RadarPanel";
+import { SignalsPanel } from "../components/terminal/SignalsPanel";
+import { StatusBar, KeyHint } from "../components/terminal/StatusBar";
+import { Tape, type TapeItem } from "../components/terminal/Tape";
+import { TopBar } from "../components/terminal/TopBar";
+import {
+  MARKET_TABS,
+  MARKET_TAB_LABEL,
+  type MarketTab,
+} from "../components/terminal/types";
+import { fmtMoney, fmtPct } from "../format";
 import { useUniverse } from "../hooks/useUniverse";
-import type {
-  AgentJobsStatusResponse,
-  AlertItem,
-  TickerDetailResponse,
-} from "../types";
+import type { UniverseItem } from "../types";
 
-function PhaseContent({
-  phase,
-  agentStatus,
-  featuredSymbols,
-  activeSymbol,
-  tickerCache,
-}: {
-  phase: number;
-  agentStatus: AgentJobsStatusResponse | null;
-  featuredSymbols: string[];
-  activeSymbol: string | undefined;
-  tickerCache: Record<string, TickerDetailResponse>;
-}) {
-  if (phase === 0) {
-    return (
-      <>
-        <div className="kiosk-center-title">Agentes IA — Cola de Trabajo</div>
-        <AgentsPhase status={agentStatus} />
-      </>
-    );
-  }
-  if (phase === 1) {
-    return (
-      <>
-        <div className="kiosk-center-title">Stock Destacado</div>
-        <StockPhase
-          hasFeatured={featuredSymbols.length > 0}
-          symbol={activeSymbol}
-          detail={activeSymbol ? tickerCache[activeSymbol] : undefined}
-        />
-      </>
-    );
-  }
-  return (
-    <>
-      <div className="kiosk-center-title">
-        Pipeline de Investigación — Market Sentinel
-      </div>
-      <PipelinePhase />
-    </>
-  );
+function toTapeItem(it: UniverseItem): TapeItem {
+  const chg = it.change_pct_1d;
+  return {
+    symbol: it.symbol,
+    price: fmtMoney(it.last_close),
+    delta: fmtPct(chg),
+    dir: chg == null || chg === 0 ? "flat" : chg > 0 ? "up" : "down",
+  };
+}
+
+// Auto-ciclo de pestañas cuando nadie interactúa (herencia del modo kiosco).
+function useIdleCycle(onTick: () => void, idleMs = 60000, stepMs = 15000) {
+  useEffect(() => {
+    let lastActivity = Date.now();
+    let lastTick = 0;
+    const bump = () => {
+      lastActivity = Date.now();
+    };
+    window.addEventListener("keydown", bump);
+    window.addEventListener("mousemove", bump);
+    window.addEventListener("click", bump);
+    const id = window.setInterval(() => {
+      const now = Date.now();
+      if (now - lastActivity >= idleMs && now - lastTick >= stepMs) {
+        lastTick = now;
+        onTick();
+      }
+    }, 1000);
+    return () => {
+      window.removeEventListener("keydown", bump);
+      window.removeEventListener("mousemove", bump);
+      window.removeEventListener("click", bump);
+      window.clearInterval(id);
+    };
+  }, [onTick, idleMs, stepMs]);
 }
 
 export default function SuperView() {
   const navigate = useNavigate();
-  const { items, error: universeError } = useUniverse();
-  const growth = useScreen("growth");
+  const { items } = useUniverse();
+  const commandRef = useRef<HTMLInputElement | null>(null);
 
-  const [alerts, setAlerts] = useState<AlertItem[] | null>(null);
-  const [agentStatus, setAgentStatus] =
-    useState<AgentJobsStatusResponse | null>(null);
-  const [tickerCache, setTickerCache] = useState<
-    Record<string, TickerDetailResponse>
-  >({});
-  const [modal, setModal] = useState<ModalState | null>(null);
-  const [step, setStep] = useState(0);
-  const [fading, setFading] = useState(false);
+  const [marketTab, setMarketTab] = useState<MarketTab>("mov");
+  const [quoteSymbol, setQuoteSymbol] = useState<string | null>(null);
 
+  const openQuote = useCallback((symbol: string) => {
+    setQuoteSymbol(symbol.toUpperCase());
+  }, []);
+
+  // Teclado global: 1-4 pestañas, / comando, ESC cierra overlay o sale.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") navigate("/");
+      const el = document.activeElement;
+      const typing =
+        el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement;
+      if (e.key === "Escape") {
+        if (typing) {
+          (el as HTMLElement).blur();
+          return;
+        }
+        if (quoteSymbol) setQuoteSymbol(null);
+        else navigate("/");
+        return;
+      }
+      if (typing) return;
+      if (quoteSymbol) return; // con el QUOTE abierto, solo ESC actúa
+      if (e.key === "/") {
+        e.preventDefault();
+        commandRef.current?.focus();
+        return;
+      }
+      const idx = ["1", "2", "3", "4"].indexOf(e.key);
+      if (idx >= 0) setMarketTab(MARKET_TABS[idx]);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [navigate]);
+  }, [navigate, quoteSymbol]);
 
-  useEffect(() => {
-    let alive = true;
-    const load = () =>
-      getAlerts({ since: todayISO(), limit: 20 })
-        .then((r) => {
-          if (alive) setAlerts(r.items);
-        })
-        .catch(() => {});
-    load();
-    const id = window.setInterval(load, 60000);
-    return () => {
-      alive = false;
-      window.clearInterval(id);
-    };
-  }, []);
-
-  useEffect(() => {
-    let alive = true;
-    const load = () =>
-      getAgentJobsStatus()
-        .then((r) => {
-          if (alive) setAgentStatus(r);
-        })
-        .catch(() => {});
-    load();
-    const id = window.setInterval(load, 15000);
-    return () => {
-      alive = false;
-      window.clearInterval(id);
-    };
-  }, []);
-
-  useEffect(() => {
-    const id = window.setInterval(() => {
-      setFading(true);
-      window.setTimeout(() => {
-        setStep((s) => s + 1);
-        setFading(false);
-      }, 400);
-    }, 10000);
-    return () => window.clearInterval(id);
-  }, []);
-
-  const withChange = useMemo(
-    () => (items ?? []).filter((it) => it.change_pct_1d != null),
-    [items]
+  useIdleCycle(
+    useCallback(() => {
+      setQuoteSymbol((q) => {
+        if (q != null) return q; // no rotar con un quote abierto
+        setMarketTab(
+          (t) => MARKET_TABS[(MARKET_TABS.indexOf(t) + 1) % MARKET_TABS.length],
+        );
+        return q;
+      });
+    }, []),
   );
 
-  const nasdaqRow = useMemo<TickerRowItem[]>(
+  const nasdaqTape = useMemo<TapeItem[]>(
     () =>
-      [...(items ?? [])]
+      (items ?? [])
         .filter((it) => it.is_nasdaq100 && it.last_close != null)
         .sort((a, b) => (b.market_cap ?? 0) - (a.market_cap ?? 0))
-        .slice(0, 18)
-        .map((it) => ({
-          symbol: it.symbol,
-          priceDisplay: fmtMoney(it.last_close),
-          pctDisplay: fmtPct(it.change_pct_1d),
-          pctCls: pctClass(it.change_pct_1d),
-        })),
-    [items]
+        .slice(0, 30)
+        .map(toTapeItem),
+    [items],
   );
 
-  const topMovers = useMemo(
+  const moversTape = useMemo<TapeItem[]>(
     () =>
-      [...withChange]
-        .sort((a, b) => Math.abs(b.change_pct_1d!) - Math.abs(a.change_pct_1d!))
-        .slice(0, 20),
-    [withChange]
-  );
-
-  const moversRow = useMemo<TickerRowItem[]>(
-    () =>
-      topMovers.map((it) => ({
-        symbol: it.symbol,
-        priceDisplay: fmtMoney(it.last_close),
-        pctDisplay: fmtPct(it.change_pct_1d),
-        pctCls: pctClass(it.change_pct_1d),
-      })),
-    [topMovers]
-  );
-
-  const sectors = useMemo<SectorAgg[]>(() => {
-    const map = new Map<string, { sum: number; count: number }>();
-    for (const it of withChange) {
-      const name = it.sector ?? "Sin sector";
-      const cur = map.get(name) ?? { sum: 0, count: 0 };
-      cur.sum += it.change_pct_1d!;
-      cur.count += 1;
-      map.set(name, cur);
-    }
-    return [...map.entries()]
-      .map(([name, v]) => ({ name, avgPct: v.sum / v.count, count: v.count }))
-      .sort((a, b) => b.avgPct - a.avgPct);
-  }, [withChange]);
-
-  const featuredSymbols = useMemo(() => {
-    const screenItems = growth.data?.items ?? [];
-    return [...screenItems]
-      .filter((it) => it.symbol != null)
-      .sort((a, b) => (a.rank ?? 1e9) - (b.rank ?? 1e9))
-      .slice(0, 3)
-      .map((it) => it.symbol as string);
-  }, [growth.data]);
-
-  const phase = step % 3;
-  const stockIdx =
-    featuredSymbols.length > 0
-      ? Math.floor(step / 3) % featuredSymbols.length
-      : 0;
-  const activeSymbol = featuredSymbols[stockIdx];
-
-  useEffect(() => {
-    if (phase !== 1 || !activeSymbol || tickerCache[activeSymbol]) return;
-    let alive = true;
-    getTicker(activeSymbol)
-      .then((r) => {
-        if (alive) setTickerCache((c) => ({ ...c, [activeSymbol]: r }));
-      })
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, [phase, activeSymbol, tickerCache]);
-
-  const aiNotes = useMemo(
-    () =>
-      (alerts ?? [])
-        .filter((a) => a.agent_analysis?.interpretation)
-        .slice(0, 6),
-    [alerts]
+      (items ?? [])
+        .filter((it) => it.change_pct_1d != null && it.last_close != null)
+        .sort(
+          (a, b) => Math.abs(b.change_pct_1d!) - Math.abs(a.change_pct_1d!),
+        )
+        .slice(0, 30)
+        .map(toTapeItem),
+    [items],
   );
 
   return (
-    <div className="kiosk">
-      <button
-        type="button"
-        className="kiosk-exit"
-        onClick={() => navigate("/")}
-      >
-        ✕ Salir
-      </button>
+    <div className="term fixed inset-0 z-30 flex flex-col overflow-hidden bg-crt font-term text-[12px] leading-tight text-glow">
+      <TopBar
+        command={
+          <CommandLine
+            inputRef={commandRef}
+            universe={items}
+            onTicker={openQuote}
+            onTab={setMarketTab}
+          />
+        }
+        onExit={() => navigate("/")}
+      />
+      <Tape label="NASDAQ-100" items={nasdaqTape} duration={120} />
+      <Tape label="MOVIMIENTOS" items={moversTape} duration={90} />
 
-      <TickerRow label="NASDAQ-100" items={nasdaqRow} variant="a" />
-      <TickerRow label="TOP MOVIMIENTOS" items={moversRow} variant="b" />
+      <main className="grid min-h-0 flex-1 grid-cols-12 gap-1 p-1">
+        <MarketPanel
+          className="col-span-5"
+          tab={marketTab}
+          onTabChange={setMarketTab}
+          onSelect={openQuote}
+          keyboardEnabled={quoteSymbol == null}
+        />
+        <div className="col-span-4 grid min-h-0 grid-rows-[3fr_2fr] gap-1">
+          <SignalsPanel onSelect={openQuote} />
+          <NewsPanel onSelect={openQuote} />
+        </div>
+        <div className="col-span-3 grid min-h-0 grid-rows-[5fr_4fr_3fr] gap-1">
+          <ObserverPanel onSelect={openQuote} />
+          <RadarPanel onSelect={openQuote} />
+          <AgentsPanel onSelect={openQuote} />
+        </div>
+      </main>
 
-      <div className="kiosk-body">
-        <div className="kiosk-main">
-          {universeError && (
-            <div className="kiosk-section-title neg">
-              Error cargando universo: {universeError}
-            </div>
-          )}
-
-          <div>
-            <div className="kiosk-section-title">Sectores S&amp;P 500</div>
-            <div className="kiosk-sectors">
-              {sectors.slice(0, 8).map((s) => (
-                <button
-                  key={s.name}
-                  type="button"
-                  className="kiosk-sector-card"
-                  onClick={() =>
-                    setModal({
-                      title: s.name,
-                      subtitle: "Sector S&P 500 / Nasdaq-100",
-                      rows: [
-                        {
-                          label: "Variación promedio del día",
-                          value: fmtPct(s.avgPct),
-                        },
-                        {
-                          label: "Tickers en universo",
-                          value: String(s.count),
-                        },
-                      ],
-                      note: "Promedio simple de la variación diaria de los tickers del universo en este sector.",
-                    })
-                  }
-                >
-                  <span className="kiosk-sector-name">{s.name}</span>
-                  <span className={`kiosk-sector-pct ${pctClass(s.avgPct)}`}>
-                    {fmtPct(s.avgPct)}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <div className="kiosk-section-title">Top Movimientos</div>
-            <div className="kiosk-movers">
-              {topMovers.slice(0, 14).map((it) => (
-                <button
-                  key={it.symbol}
-                  type="button"
-                  className="kiosk-mover-card"
-                  onClick={() =>
-                    // abrir selfdomain/ticker/${it.symbol} en nueva pestaña
-                    window.open(`/ticker/${it.symbol}`, "_self")
-                  }
-                >
-                  <span
-                    className="kiosk-mover-badge"
-                    style={{ background: accentFor(it.symbol) }}
-                  >
-                    <img
-                      src={`https://img.logo.dev/ticker/${it.symbol}?token=pk_Vf100h2MQD2W_VHqG04VCQ`}
-                      alt={it.symbol}
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = "none";
-                      }}
-                    />
-                  </span>
-                  <span className="kiosk-mover-info">
-                    <span className="kiosk-mover-symbol">{it.symbol}</span>
-                    <span className="kiosk-mover-price">
-                      {fmtMoney(it.last_close)}
-                    </span>
-                  </span>
-                  <span
-                    className={`kiosk-mover-pct ${pctClass(it.change_pct_1d)}`}
-                  >
-                    {fmtPct(it.change_pct_1d)}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 grid-rows-2 gap-[10px] flex-1 min-h-0">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div
-                key={i}
-                className={`kiosk-center${fading ? " kiosk-center-fade" : ""}`}
-              >
-                <PhaseContent
-                  phase={phase}
-                  agentStatus={agentStatus}
-                  featuredSymbols={featuredSymbols}
-                  activeSymbol={activeSymbol}
-                  tickerCache={tickerCache}
-                />
-              </div>
+      <StatusBar
+        left={
+          <>
+            {MARKET_TABS.map((t, i) => (
+              <KeyHint
+                key={t}
+                k={String(i + 1)}
+                label={MARKET_TAB_LABEL[t]}
+                active={marketTab === t}
+                onClick={() => setMarketTab(t)}
+              />
             ))}
-          </div>
-        </div>
+            <KeyHint
+              k="/"
+              label="COMANDO"
+              onClick={() => commandRef.current?.focus()}
+            />
+            <KeyHint k="ESC" label="SALIR" onClick={() => navigate("/")} />
+          </>
+        }
+        right={
+          <span className="text-[9px] tracking-[0.14em]">
+            UNIVERSO {items?.length ?? "—"} · S&P 500
+          </span>
+        }
+      />
 
-        <div className="kiosk-sidebar">
-          <div className="kiosk-side-block">
-            <div className="kiosk-section-title">Noticias &amp; Alertas</div>
-            <div className="kiosk-side-list">
-              {alerts === null ? (
-                <Loading />
-              ) : alerts.length === 0 ? (
-                <p className="muted">Sin alertas hoy.</p>
-              ) : (
-                alerts.map((a) => (
-                  <button
-                    key={a.id}
-                    type="button"
-                    className="kiosk-news-item"
-                    style={{ borderLeftColor: severityColor(a.severity) }}
-                    onClick={() =>
-                      setModal({
-                        title: severityLabel(a.severity),
-                        subtitle: `${a.symbol ?? "General"} · ${fmtRelative(
-                          a.created_at
-                        )}`,
-                        rows: [
-                          { label: "Alerta", value: a.title },
-                          { label: "Símbolo", value: a.symbol ?? "—" },
-                          { label: "Tipo", value: a.kind },
-                        ],
-                        note:
-                          a.agent_analysis?.interpretation ??
-                          "Interpretación del agente IA pendiente.",
-                      })
-                    }
-                  >
-                    <div className="kiosk-news-head">
-                      <span
-                        className="kiosk-news-tag"
-                        style={{ color: severityColor(a.severity) }}
-                      >
-                        {severityLabel(a.severity)}
-                      </span>
-                      <span className="kiosk-news-time">
-                        {fmtRelative(a.created_at)}
-                      </span>
-                    </div>
-                    <div className="kiosk-news-text">
-                      {a.symbol && <strong>{a.symbol} — </strong>}
-                      {a.title}
-                    </div>
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
-
-          <div className="kiosk-side-block">
-            <div className="kiosk-section-title kiosk-title-blue">
-              Interpretación IA
-            </div>
-            <div className="kiosk-side-list">
-              {aiNotes.length === 0 ? (
-                <p className="muted">
-                  Sin interpretaciones de agentes IA todavía.
-                </p>
-              ) : (
-                aiNotes.map((a) => (
-                  <div key={a.id} className="kiosk-ai-item">
-                    <div className="kiosk-ai-title">{a.symbol ?? a.kind}</div>
-                    <div className="kiosk-ai-text">
-                      {a.agent_analysis?.interpretation}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {modal && <Modal content={modal} onClose={() => setModal(null)} />}
+      {quoteSymbol && (
+        <QuoteOverlay
+          symbol={quoteSymbol}
+          onClose={() => setQuoteSymbol(null)}
+        />
+      )}
     </div>
   );
 }

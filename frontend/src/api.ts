@@ -1,6 +1,7 @@
 import type {
   AgentJobsStatusResponse,
   AlertsResponse,
+  NewsFeedResponse,
   ObserverReport,
   RefreshResponse,
   ScreenLevel,
@@ -50,6 +51,17 @@ export function getAlerts(
   if (params.limit != null) qs.set("limit", String(params.limit));
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
   return fetchJson<AlertsResponse>(`/api/alerts${suffix}`);
+}
+
+export function getNews(
+  params: { symbol?: string; macroOnly?: boolean; limit?: number } = {},
+): Promise<NewsFeedResponse> {
+  const qs = new URLSearchParams();
+  if (params.symbol) qs.set("symbol", params.symbol);
+  if (params.macroOnly) qs.set("macro_only", "true");
+  if (params.limit != null) qs.set("limit", String(params.limit));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return fetchJson<NewsFeedResponse>(`/api/news${suffix}`);
 }
 
 export function getTicker(symbol: string): Promise<TickerDetailResponse> {

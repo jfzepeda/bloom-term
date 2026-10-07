@@ -39,3 +39,4 @@ Disparo manual de cualquier job: `POST /api/admin/refresh/{job}` (universe, pric
 
 - Por defecto los cambios de interfaz que se pidan deben de orientarse a la super-view `frontend/src/pages/SuperView.tsx`
 - De ahora en adelante usa tailwind para todo lo estetico nuevo
+- La super-view es un terminal tipo Bloomberg: paneles en `frontend/src/components/terminal/`, sistema de diseño obligatorio en `.interface-design/system.md` (tokens `@theme` en `styles.css`: ámbar único acento, verde/rojo solo dirección, mono para datos, sans solo prosa IA)

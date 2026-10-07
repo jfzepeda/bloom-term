@@ -2,25 +2,40 @@ import { useEffect, useMemo, useState } from "react";
 import { getUniverse } from "../api";
 import type { UniverseItem, UniverseResponse } from "../types";
 
-// Caché a nivel de módulo: el universo completo se carga UNA sola vez
-// y todas las vistas filtran en memoria.
+// Caché a nivel de módulo compartida por todas las vistas; mientras haya
+// suscriptores se refresca cada POLL_MS y notifica a todos (precios del día
+// pueden actualizarse durante la sesión vía prices_latest).
+const POLL_MS = 120_000;
+
 let cache: UniverseResponse | null = null;
 let pending: Promise<UniverseResponse> | null = null;
+let timer: number | null = null;
+const listeners = new Set<(items: UniverseItem[]) => void>();
 
-function loadUniverse(): Promise<UniverseResponse> {
-  if (cache) return Promise.resolve(cache);
+function fetchUniverse(): Promise<UniverseResponse> {
   if (!pending) {
     pending = getUniverse()
       .then((r) => {
         cache = r;
+        for (const l of listeners) l(r.items);
         return r;
       })
-      .catch((e) => {
-        pending = null; // permite reintentar en la próxima montada
-        throw e;
+      .finally(() => {
+        pending = null;
       });
   }
   return pending;
+}
+
+function syncTimer() {
+  if (listeners.size > 0 && timer == null) {
+    timer = window.setInterval(() => {
+      fetchUniverse().catch(() => {}); // el poll fallido conserva la caché
+    }, POLL_MS);
+  } else if (listeners.size === 0 && timer != null) {
+    window.clearInterval(timer);
+    timer = null;
+  }
 }
 
 export function useUniverse(): {
@@ -28,20 +43,27 @@ export function useUniverse(): {
   loading: boolean;
   error: string | null;
 } {
-  const [items, setItems] = useState<UniverseItem[] | null>(cache ? cache.items : null);
+  const [items, setItems] = useState<UniverseItem[] | null>(
+    cache ? cache.items : null,
+  );
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let alive = true;
-    loadUniverse()
-      .then((r) => {
-        if (alive) setItems(r.items);
-      })
-      .catch((e) => {
-        if (alive) setError(e instanceof Error ? e.message : String(e));
+    const listener = (next: UniverseItem[]) => {
+      setItems(next);
+      setError(null);
+    };
+    listeners.add(listener);
+    syncTimer();
+    if (cache) setItems(cache.items);
+    else
+      fetchUniverse().catch((e) => {
+        if (listeners.has(listener))
+          setError(e instanceof Error ? e.message : String(e));
       });
     return () => {
-      alive = false;
+      listeners.delete(listener);
+      syncTimer();
     };
   }, []);
 

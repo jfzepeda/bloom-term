@@ -43,10 +43,17 @@ export function fmtNum(v: number | null | undefined, decimals = 1): string {
   return v.toFixed(decimals);
 }
 
+/** El backend serializa datetimes naive en UTC (sin sufijo de zona); si el
+ * ISO no trae zona horaria se interpreta como UTC para no desplazar tiempos. */
+export function parseApiDate(iso: string): Date {
+  const hasTz = /(?:Z|[+-]\d{2}:?\d{2})$/.test(iso);
+  return new Date(hasTz || !iso.includes("T") ? iso : `${iso}Z`);
+}
+
 /** Fecha relativa simple: "hace 2 h", "hace 5 min", "hace 3 d". */
 export function fmtRelative(iso: string | null | undefined): string {
   if (!iso) return "—";
-  const d = new Date(iso);
+  const d = parseApiDate(iso);
   if (isNaN(d.getTime())) return "—";
   const secs = Math.max(0, (Date.now() - d.getTime()) / 1000);
   if (secs < 60) return "hace un momento";

@@ -243,6 +243,35 @@ def get_alerts(
     return {"items": [_alert_dict(a) for a in alerts]}
 
 
+@router.get("/news")
+def get_news(
+    symbol: str | None = None,
+    macro_only: bool = False,
+    limit: int = Query(default=80, ge=1, le=300),
+    session: Session = Depends(db.get_db),
+) -> dict[str, Any]:
+    """Noticias más recientes; symbol filtra por ticker, macro_only solo macro (symbol NULL)."""
+    stmt = select(NewsItem)
+    if symbol:
+        stmt = stmt.where(NewsItem.symbol == symbol.upper())
+    elif macro_only:
+        stmt = stmt.where(NewsItem.symbol.is_(None))
+    stmt = stmt.order_by(NewsItem.published_at.desc().nulls_last()).limit(limit)
+    items = session.scalars(stmt).all()
+    return {
+        "items": [
+            {
+                "symbol": n.symbol,
+                "title": n.title,
+                "url": n.url,
+                "source": n.source,
+                "published_at": _iso(n.published_at),
+            }
+            for n in items
+        ]
+    }
+
+
 @router.get("/agent-jobs/status")
 def get_agent_jobs_status(session: Session = Depends(db.get_db)) -> dict[str, Any]:
     """Estado de la cola de agentes IA: conteos por status y últimos jobs procesados."""

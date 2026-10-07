@@ -8,7 +8,7 @@ from app.agents.client import has_api_key
 from app.agents.event_scout import run_event_scout
 from app.agents.observer import run_observer
 from app.agents.research import analyze_alert
-from app.models import AgentJob
+from app.models import AgentJob, Alert
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +42,13 @@ def process_agent_jobs(session: Session, limit: int = 5) -> int:
         for job in jobs:
             job.status = "skipped"
             job.error = "ANTHROPIC_API_KEY no configurada"
+            # La alerta asociada tampoco tendrá análisis: se marca skipped
+            # para que la UI no muestre "IA pendiente" a perpetuidad.
+            payload = job.payload or {}
+            if job.kind == "research" and payload.get("alert_id") is not None:
+                alert = session.get(Alert, int(payload["alert_id"]))
+                if alert is not None and alert.status != "analyzed":
+                    alert.status = "skipped"
         session.commit()
         return 0
 

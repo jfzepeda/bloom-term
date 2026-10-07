@@ -147,6 +147,15 @@ export interface NewsItem {
   published_at: string | null;
 }
 
+// GET /api/news — feed global; symbol null = noticia macro
+export interface NewsFeedItem extends NewsItem {
+  symbol: string | null;
+}
+
+export interface NewsFeedResponse {
+  items: NewsFeedItem[];
+}
+
 export interface TickerDetailResponse {
   ticker: TickerInfo;
   prices: PricePoint[];
